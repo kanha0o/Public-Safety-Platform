@@ -9,6 +9,11 @@ const IncidentSchema = new mongoose.Schema({
     enum: ["low", "medium", "high"],
     default: "low"
   },
+  reportedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    default: null
+  },
   image_url: String,
   status: {
     type: String,

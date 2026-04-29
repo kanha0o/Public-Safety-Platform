@@ -1,9 +1,10 @@
 const Incident = require("../models/Incident");
+const User = require("../models/User");
 
 // CREATE
 exports.createIncident = async (req, res) => {
   try {
-    const { title, description, category, severity, lat, lng } = req.body;
+    const { title, description, category, severity, lat, lng, userId } = req.body;
 
     if (!title || !lat || !lng) {
       return res.status(400).json({ msg: "Missing required fields" });
@@ -14,13 +15,40 @@ exports.createIncident = async (req, res) => {
       description,
       category,
       severity,
+      reportedBy: userId || null,
       location: {
         type: "Point",
         coordinates: [lng, lat]
       }
     });
 
+    // Notify nearby users (within 50km), excluding default coordinates at [0,0]
+    const nearbyUsers = await User.find({
+      "location.coordinates": { $ne: [0, 0] },
+      location: {
+        $near: {
+          $geometry: {
+            type: "Point",
+            coordinates: [lng, lat]
+          },
+          $maxDistance: 50000
+        }
+      }
+    });
+
+    // Add notification to each nearby user
+    for (let user of nearbyUsers) {
+      user.notifications.push({
+        incidentId: incident._id,
+        message: `New incident: ${title} (${severity} severity) near your location`,
+        read: false
+      });
+      await user.save();
+    }
+
+    // Emit real-time update
     req.io.emit("newIncident", incident);
+    req.io.emit("notificationUpdate", { userIds: nearbyUsers.map(u => u._id) });
 
     res.json(incident);
   } catch (err) {
@@ -30,7 +58,7 @@ exports.createIncident = async (req, res) => {
 
 // GET ALL
 exports.getAllIncidents = async (req, res) => {
-  const data = await Incident.find().sort({ createdAt: -1 });
+  const data = await Incident.find().populate("reportedBy", "name email").sort({ createdAt: -1 });
   res.json(data);
 };
 
@@ -48,7 +76,7 @@ exports.getNearbyIncidents = async (req, res) => {
         $maxDistance: parseInt(radius)
       }
     }
-  });
+  }).populate("reportedBy", "name email");
 
   res.json(data);
 };

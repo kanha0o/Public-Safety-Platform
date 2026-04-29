@@ -1,20 +1,21 @@
 const mongoose = require("mongoose");
-const dns = require("dns");
-
-// 🔥 FORCE IPv4 (CRITICAL FIX)
-dns.setDefaultResultOrder('ipv4first');
+const { MongoMemoryServer } = require("mongodb-memory-server");
 
 const connectDB = async () => {
   try {
-    await mongoose.connect(process.env.MONGO_URI, {
+    // Use MongoDB Memory Server for local development
+    const mongoServer = await MongoMemoryServer.create();
+    const mongoUri = mongoServer.getUri();
+
+    await mongoose.connect(mongoUri, {
       serverSelectionTimeoutMS: 10000
     });
 
-    console.log("✅ MongoDB Atlas Connected");
+    console.log("✅ Local MongoDB Memory Server Connected");
   } catch (err) {
     console.error("❌ DB Error:", err.message);
     process.exit(1);
   }
 };
 
-module.exports = connectDB;
+module.exports = connectDB; 
